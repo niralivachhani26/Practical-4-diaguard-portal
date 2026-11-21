@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DiaGuard AI — Multi-Modal Diabetic Screening Portal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #0b1120; color: #f1f5f9; }
+    .glass-card { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(148, 163, 184, 0.15); }
+    .drop-zone { border: 2px dashed rgba(56, 189, 248, 0.35); transition: all 0.25s ease; }
+    .drop-zone:hover, .drop-zone.dragover { border-color: #38bdf8; background: rgba(56, 189, 248, 0.08); }
+    .gauge-ring { transition: stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.5s ease; transform: rotate(-90deg); transform-origin: 50% 50%; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- Top Clinical Navigation Bar -->
+  <header class="border-b border-slate-800 bg-slate-900/90 sticky top-0 z-20">
+    <div class="max-w-7xl mx-auto px-6 py-4 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-sky-500/20 border border-sky-400/30 flex items-center justify-center text-sky-400 font-bold text-lg">
+          +
+        </div>
+        <div>
+          <h1 class="text-lg font-bold tracking-tight text-white">DiaGuard <span class="text-sky-400">Clinical AI</span></h1>
+          <p class="text-xs text-slate-400">Multi-Organ Diabetic Microvascular Screening &amp; Grad-CAM XAI</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3 text-xs">
+        <span id="systemStatus" class="px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Checking Engine...
+        </span>
+        <button onclick="window.print()" class="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition">
+          Print Clinical Report
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Workspace -->
+  <main class="max-w-7xl mx-auto w-full px-6 py-8 flex-1 space-y-8">
+
+    <!-- Patient Metadata & Action Bar -->
+    <div class="glass-card rounded-2xl p-5 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex flex-wrap items-center gap-4">
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Patient ID (Anonymized)</label>
+          <input id="patientId" type="text" value="PT-2026-0841" class="bg-slate-900/90 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-sky-400" />
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Screening Modality</label>
+          <span class="inline-block bg-slate-900/90 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-sky-300">
+            Ocular Fundus + Plantar Dermal
+          </span>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <button onclick="resetAll()" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-medium text-slate-300 transition">
+          Clear Scans
+        </button>
+        <button id="analyzeBtn" onclick="runScreening()" class="px-6 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold text-sm shadow-lg shadow-sky-500/20 transition flex items-center gap-2">
+          <span>Run Real-Time AI Screening</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Dual Upload Panels -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+      <!-- Retinal Upload Card -->
+      <div class="glass-card rounded-2xl p-6 space-y-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="text-xs font-semibold uppercase tracking-wider text-sky-400">Practical 2 Module</span>
+            <h2 class="text-base font-semibold text-white">Retinal Fundus Scan (Diabetic Retinopathy)</h2>
+          </div>
+          <span class="text-xs text-slate-400 bg-slate-800 px-2.5 py-1 rounded-md">ResNet-50</span>
+        </div>
+
+        <label id="drDropZone" class="drop-zone rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer min-h-[220px]">
+          <input id="drInput" type="file" accept="image/*" class="hidden" onchange="handlePreview(this, 'drPreview', 'drPlaceholder')" />
+          <div id="drPlaceholder" class="space-y-2">
+            <div class="w-12 h-12 mx-auto rounded-full bg-sky-500/10 text-sky-400 flex items-center justify-center text-xl">👁️</div>
+            <p class="text-sm font-medium text-slate-200">Click or drag retinal fundus photo here</p>
+            <p class="text-xs text-slate-400">Supports PNG, JPG, JPEG (Macula / Optic Disc view)</p>
+          </div>
+          <img id="drPreview" class="hidden max-h-48 rounded-lg object-contain shadow-md" />
+        </label>
+      </div>
+
+      <!-- Foot Ulcer Upload Card -->
+      <div class="glass-card rounded-2xl p-6 space-y-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="text-xs font-semibold uppercase tracking-wider text-teal-400">Practical 3 Module</span>
+            <h2 class="text-base font-semibold text-white">Plantar Foot Scan (Diabetic Foot Ulcer)</h2>
+          </div>
+          <span class="text-xs text-slate-400 bg-slate-800 px-2.5 py-1 rounded-md">EfficientNet-V2-S</span>
+        </div>
+
+        <label id="dfuDropZone" class="drop-zone rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer min-h-[220px]">
+          <input id="dfuInput" type="file" accept="image/*" class="hidden" onchange="handlePreview(this, 'dfuPreview', 'dfuPlaceholder')" />
+          <div id="dfuPlaceholder" class="space-y-2">
+            <div class="w-12 h-12 mx-auto rounded-full bg-teal-500/10 text-teal-400 flex items-center justify-center text-xl">🦶</div>
+            <p class="text-sm font-medium text-slate-200">Click or drag plantar foot scan here</p>
+            <p class="text-xs text-slate-400">Supports PNG, JPG, JPEG (Dermal / Ulcer region)</p>
+          </div>
+          <img id="dfuPreview" class="hidden max-h-48 rounded-lg object-contain shadow-md" />
+        </label>
+      </div>
+    </div>
+
+    <!-- Real-Time Results Dashboard (Hidden until inference runs) -->
+    <section id="resultsSection" class="hidden space-y-6">
+
+      <!-- Combined Risk Score Banner -->
+      <div class="glass-card rounded-2xl p-6 grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+        <div class="flex items-center gap-5">
+          <div class="relative w-28 h-28 flex items-center justify-center">
+            <svg class="w-28 h-28" viewBox="0 0 120 120">
+              <circle cx="60" cy="60" r="50" fill="none" stroke="#1e293b" stroke-width="10" />
+              <circle id="riskCircle" class="gauge-ring" cx="60" cy="60" r="50" fill="none" stroke="#38bdf8" stroke-width="10"
+                      stroke-dasharray="314.16" stroke-dashoffset="314.16" stroke-linecap="round" />
+            </svg>
+            <div class="absolute text-center">
+              <span id="overallRiskText" class="text-2xl font-bold text-white">0%</span>
+              <span class="block text-[10px] uppercase tracking-wider text-slate-400">Risk Index</span>
+            </div>
+          </div>
+          <div>
+            <span id="triageBadge" class="inline-block px-3 py-1 rounded-full text-xs font-bold tracking-wide bg-sky-500/20 text-sky-300 mb-2">
+              ANALYZING
+            </span>
+            <h3 class="text-lg font-bold text-white">Microvascular Risk Score</h3>
+            <p id="latencyText" class="text-xs text-slate-400 mt-1">Inference latency: -- ms</p>
+          </div>
+        </div>
+
+        <div class="md:col-span-2 bg-slate-900/80 border border-slate-800 rounded-xl p-4">
+          <p class="text-xs uppercase tracking-wider text-slate-400 font-semibold mb-1">Clinical Decision Support Recommendation</p>
+          <p id="recommendationText" class="text-sm text-slate-200 leading-relaxed">--</p>
+        </div>
+      </div>
+
+      <!-- Side-by-Side Grad-CAM Visual Explanations -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        <!-- Retina Result Card -->
+        <div id="retinaResultCard" class="hidden glass-card rounded-2xl p-6 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <h3 class="font-semibold text-white">Retinal AI Assessment &amp; Grad-CAM</h3>
+            <span id="drRiskPill" class="px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-800 text-sky-400">Risk: --%</span>
+          </div>
+          <div class="grid grid-cols-2 gap-4 items-center">
+            <div class="space-y-2 text-sm">
+              <div>
+                <span class="text-xs text-slate-400 block">Predicted Grade</span>
+                <span id="drDiagnosis" class="font-semibold text-white text-base">--</span>
+              </div>
+              <div>
+                <span class="text-xs text-slate-400 block">Model Confidence</span>
+                <span id="drConfidence" class="font-medium text-sky-400">--%</span>
+              </div>
+              <p class="text-xs text-slate-400 pt-2">
+                Red heatmap regions indicate high gradient activation across microaneurysms or exudates.
+              </p>
+            </div>
+            <div class="text-center">
+              <img id="drCamImg" class="w-44 h-44 mx-auto rounded-xl border border-slate-700 object-cover" />
+              <span class="text-[11px] text-slate-400 mt-1.5 block">Layer4 Spatial Attention</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Foot Ulcer Result Card -->
+        <div id="footResultCard" class="hidden glass-card rounded-2xl p-6 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <h3 class="font-semibold text-white">Plantar Ulcer Assessment &amp; Grad-CAM</h3>
+            <span id="dfuRiskPill" class="px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-800 text-teal-400">Risk: --%</span>
+          </div>
+          <div class="grid grid-cols-2 gap-4 items-center">
+            <div class="space-y-2 text-sm">
+              <div>
+                <span class="text-xs text-slate-400 block">Tissue Classification</span>
+                <span id="dfuDiagnosis" class="font-semibold text-white text-base">--</span>
+              </div>
+              <div>
+                <span class="text-xs text-slate-400 block">Model Confidence</span>
+                <span id="dfuConfidence" class="font-medium text-teal-400">--%</span>
+              </div>
+              <p class="text-xs text-slate-400 pt-2">
+                Red heatmap regions localize dermal erythema, ischemic margins, and ulcer craters.
+              </p>
+            </div>
+            <div class="text-center">
+              <img id="dfuCamImg" class="w-44 h-44 mx-auto rounded-xl border border-slate-700 object-cover" />
+              <span class="text-[11px] text-slate-400 mt-1.5 block">Features[-1] Spatial Attention</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // Check backend health on page load
+    fetch('/health').then(r => r.json()).then(d => {
+      const el = document.getElementById('systemStatus');
+      el.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span> Engine Online (${d.device})`;
+    }).catch(() => {
+      const el = document.getElementById('systemStatus');
+      el.className = "px-3 py-1.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20";
+      el.textContent = "Backend Offline";
+    });
+
+    function handlePreview(input, imgId, placeholderId) {
+      if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = e => {
+          const img = document.getElementById(imgId);
+          img.src = e.target.result;
+          img.classList.remove('hidden');
+          document.getElementById(placeholderId).classList.add('hidden');
+        };
+        reader.readAsDataURL(input.files[0]);
+      }
+    }
+
+    function resetAll() {
+      ['drInput', 'dfuInput'].forEach(id => document.getElementById(id).value = '');
+      ['drPreview', 'dfuPreview'].forEach(id => document.getElementById(id).classList.add('hidden'));
+      ['drPlaceholder', 'dfuPlaceholder'].forEach(id => document.getElementById(id).classList.remove('hidden'));
+      document.getElementById('resultsSection').classList.add('hidden');
+    }
+
+    async function runScreening() {
+      const drFile = document.getElementById('drInput').files[0];
+      const dfuFile = document.getElementById('dfuInput').files[0];
+
+      if (!drFile && !dfuFile) {
+        alert("Please upload at least one scan (Retinal Fundus or Plantar Foot) first.");
+        return;
+      }
+
+      const btn = document.getElementById('analyzeBtn');
+      btn.disabled = true;
+      btn.innerHTML = `<span>Analyzing Scans &amp; Generating Grad-CAM...</span>`;
+
+      const formData = new FormData();
+      if (drFile) formData.append('retinal_scan', drFile);
+      if (dfuFile) formData.append('foot_scan', dfuFile);
+
+      try {
+        const res = await fetch('/screen', { method: 'POST', body: formData });
+        const data = await res.json();
+
+        document.getElementById('resultsSection').classList.remove('hidden');
+
+        // Update animated SVG risk gauge
+        const risk = data.overall_risk_score;
+        const circumference = 314.16;
+        const offset = circumference - (risk / 100) * circumference;
+        const circle = document.getElementById('riskCircle');
+        circle.style.strokeDashoffset = offset;
+        circle.style.stroke = risk >= 65 ? '#f43f5e' : (risk >= 30 ? '#f59e0b' : '#10b981');
+
+        document.getElementById('overallRiskText').textContent = `${risk}%`;
+        document.getElementById('recommendationText').textContent = data.recommendation;
+        document.getElementById('latencyText').textContent = `Inference + Grad-CAM completed in ${data.inference_ms} ms`;
+
+        const badge = document.getElementById('triageBadge');
+        badge.textContent = data.triage_level;
+        badge.className = risk >= 65
+          ? "inline-block px-3 py-1 rounded-full text-xs font-bold tracking-wide bg-rose-500/20 text-rose-300 mb-2"
+          : (risk >= 30
+            ? "inline-block px-3 py-1 rounded-full text-xs font-bold tracking-wide bg-amber-500/20 text-amber-300 mb-2"
+            : "inline-block px-3 py-1 rounded-full text-xs font-bold tracking-wide bg-emerald-500/20 text-emerald-300 mb-2");
+
+        // Retina Card
+        const retinaCard = document.getElementById('retinaResultCard');
+        if (data.retina) {
+          retinaCard.classList.remove('hidden');
+          document.getElementById('drDiagnosis').textContent = data.retina.diagnosis;
+          document.getElementById('drConfidence').textContent = `${data.retina.confidence}%`;
+          document.getElementById('drRiskPill').textContent = `Ocular Risk: ${data.retina.risk_score}%`;
+          document.getElementById('drCamImg').src = `data:image/png;base64,${data.retina.gradcam_base64}`;
+        } else {
+          retinaCard.classList.add('hidden');
+        }
+
+        // Foot Card
+        const footCard = document.getElementById('footResultCard');
+        if (data.foot) {
+          footCard.classList.remove('hidden');
+          document.getElementById('dfuDiagnosis').textContent = data.foot.diagnosis;
+          document.getElementById('dfuConfidence').textContent = `${data.foot.confidence}%`;
+          document.getElementById('dfuRiskPill').textContent = `Ulcer Risk: ${data.foot.risk_score}%`;
+          document.getElementById('dfuCamImg').src = `data:image/png;base64,${data.foot.gradcam_base64}`;
+        } else {
+          footCard.classList.add('hidden');
+        }
+
+      } catch (err) {
+        alert("Error running inference. Check that the FastAPI server is running.");
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<span>Run Real-Time AI Screening</span>`;
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,67 @@
+================================================================================
+   PRACTICAL 4: TASK SPECIFICATION & TECHNICAL DOCUMENTATION
+   Project: DiaGuard — Multi-Modal Diabetic Microvascular Screening & XAI Portal
+================================================================================
+
+1. PROBLEM STATEMENT & CLINICAL OBJECTIVE
+--------------------------------------------------------------------------------
+- Clinical Challenge:
+  Diabetic Retinopathy (DR) and Diabetic Foot Ulcers (DFUs) share systemic
+  microvascular pathology, yet routine clinical workflows screen ocular and
+  plantar complications in isolated silos using opaque classifiers without
+  visual verification or unified patient-level risk triage.
+- Engineering Task:
+  Architect and deploy a decoupled, full-stack clinical decision-support portal
+  that unifies 5-stage DR grading (ResNet-50) and binary DFU detection
+  (EfficientNet-V2-S) with real-time Grad-CAM spatial attention overlays and
+  max-weighted multi-modal risk fusion.
+
+
+2. SYSTEM & INPUT SPECIFICATIONS
+--------------------------------------------------------------------------------
+- Multi-Modal Inputs:
+  - Modality A (Ocular Fundus): RGB retinal fundus photograph (224x224 tensor)
+    evaluated across 5 International Clinical DR grades (Grade 0 to Grade 4).
+  - Modality B (Plantar Dermal): RGB plantar foot scan (224x224 tensor)
+    classified as Abnormal (Ulcer / Pre-ulcerative) vs. Normal (Healthy Skin).
+- Inference & Explainability Output:
+  - Per-branch class probabilities, severity-weighted ocular risk (R_DR),
+    plantar ulcer risk (R_DFU), unified Microvascular Risk Index (R_total),
+    base64-encoded Grad-CAM overlays, and end-to-end CPU latency telemetry.
+
+
+3. METHODOLOGY & SYSTEM ARCHITECTURE (4 SUB-TASKS)
+--------------------------------------------------------------------------------
+- Task 4.1 — Unified Multi-Modal Inference Engine (backend/inference.py):
+  - Loads trained checkpoints from Practical 2 (ResNet-50 DR classifier) and
+    Practical 3 (EfficientNet-V2-S DFU classifier) in evaluation mode.
+  - Applies standardized 224x224 resizing and ImageNet normalization across
+    both branches for deterministic CPU inference (~2.4 s dual-scan runtime).
+
+- Task 4.2 — Dual-Branch Grad-CAM Hook Integration (backend/xai_engine.py):
+  - Registers forward activation and full backward gradient hooks on
+    layer4[-1] (ResNet-50) and features[-1] (EfficientNet-V2-S).
+  - Generates upsampled JET colormaps alpha-blended (alpha = 0.45) onto raw
+    clinical scans to localize microaneurysms, exudates, and ulcer craters.
+
+- Task 4.3 — Max-Weighted Clinical Risk Fusion & FastAPI REST Layer (backend/api.py):
+  - Computes unified Microvascular Risk Index:
+    R_total = 0.7 * max(R_DR, R_DFU) + 0.3 * ((R_DR + R_DFU) / 2), triggering
+    a High-Risk clinical referral alert when R_total >= 65.
+  - Exposes asynchronous REST endpoints (/health, /api/predict) with Pydantic
+    schema validation and structured JSON responses.
+
+- Task 4.4 — Interactive Clinical Decision-Support Frontend (frontend/):
+  - Responsive browser dashboard supporting anonymized Patient ID tracking,
+    dual-scan drag-and-drop upload, live Grad-CAM inspection, radial risk gauge
+    visualization, and printable clinical summary reports.
+
+
+4. KEY DELIVERABLES & OUTPUT ARTIFACTS
+--------------------------------------------------------------------------------
+- Backend Inference & API  : backend/api.py, backend/inference.py, backend/xai_engine.py
+- Clinical Web Dashboard   : frontend/index.html, frontend/styles.css, frontend/app.js
+- Runtime Performance      : Dual-modal inference + Grad-CAM rendering in ~2.4 s (CPU)
+- Integration Test Suite   : tests/test_api_endpoints.py (verifies /health, multipart
+                             image uploads, Grad-CAM base64 output, and risk fusion)
+================================================================================
